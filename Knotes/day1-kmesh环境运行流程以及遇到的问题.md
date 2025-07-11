@@ -1,10 +1,24 @@
 ##  kmesh环境运行流程以及遇到的问题
 ### 首先是在根目录下有build.sh
 - sudo ./build.sh 构建项目
+- 要是在这一步遇到了问题
+```
+make: go: 没有那个文件或目录
+make: go: 没有那个文件或目录
+//明明有go就是找不到
+```
+- 解决方案:GO=$(which go) ./build.sh
+- 然后又遇到了一个问题
+```
+clang: /usr/local/MATLAB/MATLAB_Runtime/v911/sys/os/glnxa64/libstdc++.so.6: version `GLIBCXX_3.4.29' not found (required by clang)
+//他是因为这个matlab版本把这个覆盖了
+```
+- 整体解决方案: env -u LD_LIBRARY_PATH GO=$(which go) ./build.sh
+
 - sudo ./build.sh -i 安装项目
 ### 在/test/bpf_ut/bpftest下面有makefile这里是单元测试特别关注
 - 不能直接 make  run
-- 1.可能会出现bpftest/trf.pb.go:26:2: google.golang.org/protobuf@v1.36.3: Get "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.3.zip": dial tcp 142.251.33.81:443: i/o timeout这个网络问题
+- #### 1.可能会出现bpftest/trf.pb.go:26:2: google.golang.org/protobuf@v1.36.3: Get "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.3.zip": dial tcp 142.251.33.81:443: i/o timeout这个网络问题
 - 解决方法(使用国内代理)
 ```
 sudo env \
@@ -29,7 +43,7 @@ sudo PATH=$PATH:/usr/local/go/bin make run
 ```
  #在kmesh根目录下
  #首先找他在哪
- 运行find . -type f -name "api-v2-c.pc"
+ 运行find /home/sweet/git/kmesh -name "api-v2-c.pc"
  ./mk/api-v2-c.pc
  # 设置 pkg-config 搜索路径
  运行export PKG_CONFIG_PATH=/home/sweet/git/kmesh/mk:$PKG_CONFIG_PATH
@@ -73,5 +87,5 @@ sudo PATH=$PATH:/usr/local/go/bin make run
   GOSUMDB=off \
   PATH=$PATH:/usr/local/go/bin \
   LD_LIBRARY_PATH=/usr/lib64:$LD_LIBRARY_PATH \
-  go test ./bpftest -bpf-ut-path /home/sweet/git/kmesh/test/bpf_ut -       test.v
+  go test ./bpftest -bpf-ut-path /home/sweet/git/kmesh/test/bpf_ut   -test.v
 ```

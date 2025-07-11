@@ -6,9 +6,12 @@
 
 首先你应该写三个ebpf文件的测试，首先应该思考的问题
 
-1.这三个ebpf文件写测试的先后顺序
+1.这三个ebpf文件写测试的先后顺序：sendmsg.c
 
 2.这三个ebpf文件的ut测试用哪个框架写
+
+3.sendmsg.c他需要真实挂载测试吗？？
+
 #### kmesh技巧
 package bpftests可以找到关键文件
 
@@ -262,3 +265,19 @@ User Space -> |      sendmsg() 调用     |
 9	bpf_msg_push_data 被正确调用	alloc_dst_length() 是否触发 push_data，空间是否充足
 10	bpf_sk_storage_get 返回 NULL 的处理	模拟 storage 没有挂载时应返回 -ENOENT，并跳过编码
 
+
+```
+- 整体分析
+- hook 点：sk_msg表示程序挂载到 sockmap 的 sk_msg hook，用于拦截 socket 层面 write/sendmsg 方向的数据流（发包时调用）
+- 条件是：FD 已被放入 sockmap 且 attach 成功（AttachSkMsg）。
+- 第一个思路
+```
+✅ 编译 sendmsg.c，生成 sk_msg 类型的 sendmsg_prog	
+✅ 定义一个 sockmap，如 struct bpf_map_def km_sockmap	
+✅ 加载 BPF 对象（ebpf.NewCollection()）	
+✅ 获取 km_sockmap map 和 sendmsg_prog program	
+✅ 启动 TCP server + Dial 连接	
+✅ 将连接的 socket FD update 到 sockmap	
+✅ 此时，sendmsg_prog 会自动 attach 并在 conn.Write() 时被触发	
+✅ （可选）使用 ringbuf / log / map 输出编码结果
+```
