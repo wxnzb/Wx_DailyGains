@@ -4,6 +4,7 @@
 - bpf_sock_hash_update
 - bpf_msg_redirect_hash
 - sock_ops_map----/home/sweet/git/kmesh/oncn-mda/docs/design.md可以认真读一下
+- `bpf_map_update_elem` 确实是 eBPF 程序和用户态或内核态交互的关键函数之一。
 - 第一个区别
 - sec(sockops)他是挂载到cgroup上面的
 - 但是sec(sk_msg)他必须是挂载到一个sockfd上面的，两者挂载方式不同
