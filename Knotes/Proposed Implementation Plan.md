@@ -38,7 +38,7 @@
 - Controls skipping of simulated connections.
 - 4：is_managed_by_kmesh_skb(skb) == false
 - Packets not managed by Kmesh should be skipped directly.
-- 5：Packets not managed by Kmesh should be skipped directly.
+- 5：observe_on_data(sk);
 - This function triggers reporting based on timing and performs operations on BPF maps.
 - Corresponding maps can be checked on the Go side for testing purposes.
 ### For cgroup_sock.c
