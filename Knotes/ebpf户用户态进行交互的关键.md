@@ -131,3 +131,63 @@ StartLogReader() 启动 handleLogEvents() 循环读取
    ↓
 decodeRecord + log.Infof 输出
 ```
+
+cmd = exec.Command("bpftool", "map", "dump", "name", "km_socket")
+
+​                        output, err = cmd.CombinedOutput()
+
+​                        if err != nil {
+
+​                            t.Logf("Failed to execute bpftool command: %v", err)
+
+​                        } else {
+
+​                            // Log the raw output from bpftool for comparison
+
+​                            t.Logf("bpftool map dump name km_manage output:\n%s", string(output))
+
+​                        }
+
+这个对于找到map验证很有用
+
+**打开内核中已存在的 sockhash（km_socket）**：
+
+```
+go复制编辑sockMap, err := ebpf.LoadPinnedMap("/sys/fs/bpf/路径/km_socket", nil)
+if err != nil {
+    t.Fatalf("Failed to load pinned km_socket: %v", err)
+}
+```
+
+
+
+workload_test.go:892: Attach failed: attach program: bad file descriptor (errno=9)
+
+这个到底什么时候可以解决
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
