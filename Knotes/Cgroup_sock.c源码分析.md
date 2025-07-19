@@ -5,7 +5,7 @@
  应用层   ─────────────►  connect() 系统调用 ──►【cgroup/connect4】触发（Socket Hook）
 
 ```
-int cgroup_connect4_prog(struct bpf_sock_addr *ctx)
+nkj额为确保int cgroup_connect4_prog(struct bpf_sock_addr *ctx)
 {
 //将 bpf_sock_addr 的信息封装到 kmesh_context 中备用。dnat_ip/port 默认就是目标地址，后续可能被重写
     struct kmesh_context kmesh_ctx = {0};
@@ -285,4 +285,65 @@ DNAT 重定向的效果
 ```
  尾调用 kmesh_workload_tail_call()
 ```
+
+这是第一个问题：这里的尾调是在干什么？
+
+》sudo bpftool map dump name km_cgr_tailcall
+
+key: 00 00 00 00  value: af 00 00 00
+key: 01 00 00 00  value: b0 00 00 00
+Found 2 elements
+》 sudo bpftool prog show id 175
+sudo bpftool prog show id 176
+
+175: cgroup_sock_addr  name cgroup_connect4_prog  tag 1d9ae55e8bfc0a34  gpl
+        loaded_at 2025-07-18T09:32:17+0800  uid 0
+        xlated 14400B  jited 8113B  memlock 16384B  map_ids 81,82,84,85,86,87,88,89,90,91,92
+        btf_id 268
+176: cgroup_sock_addr  name cgroup_connect6_prog  tag 369ed384a24dd733  gpl
+        loaded_at 2025-07-18T09:32:17+0800  uid 0
+        xlated 15024B  jited 8423B  memlock 16384B  map_ids 81,84,85,86,82,87,88,89,90,91,92
+        btf_id 269
+
+他好像又调回到自己了，好奇怪，还不清楚怎么了
+
+第二个问题：frontend_v = map_lookup_frontend(&frontend_k);
+
+他在这里将key填充找value,这里的key就是本来要传入的目的ip
+
+关键：首先将原目的ip存入frontend_key结构体，然后调用bpf_map_lookup_elem(&map_of_frontend, frontend_key);来找到相应的frontend_value,这个里面存了__u32 upstream_id上游id,把这个id先存在 service_k.service_id里面通过bpf_map_lookup_elem(&map_of_service,  service_k)去找相应的service_value，这个结构体里面存了：
+typedef struct {
+    __u32 prio_endpoint_count[PRIO_COUNT]; // endpoint count of current service with prio
+    __u32 lb_policy; // load balancing algorithm, currently supports random algorithm, locality loadbalance
+                     // Failover/strict mode
+    __u32 service_port[MAX_PORT_COUNT]; // service_port[i] and target_port[i] are a pair, i starts from 0 and max value
+                                        // is MAX_PORT_COUNT-1
+    __u32 target_port[MAX_PORT_COUNT];
+    struct ip_addr wp_addr;
+    __u32 waypoint_port;
+} service_value;要是找到了，
+但是要是找不到，就将这个id存到backend_key结构体，kmesh_map_lookup_elem(&map_of_backend, backend_key);，找到相应的backend_value，他长这样：
+
+typedef struct {
+    struct ip_addr addr;//后端 Pod 的实际 IP 地址
+    __u32 service_count;//当前这个 backend（Pod）属于多少个服务（Service）
+    __u32 service[MAX_SERVICE_COUNT];//该 backend（Pod）属于的服务 ID 列表
+    struct ip_addr wp_addr;//如果该 Pod 需要通过 Waypoint 中转，这里记录它的 waypoint IP
+    __u32 waypoint_port;//Waypoint 节点监听的端口
+} backend_value;，然后调用waypoint_manager(kmesh_ctx, &backend_v->wp_addr, backend_v->waypoint_port);这里第二个参数最终ip，第三个参数最终port;
+### 进行验证
+conn, err := net.Dial("tcp4", "10.96.0.1:8080") // 原始目标
+if err != nil {
+    t.Fatalf("Dial failed: %v", err)
+}
+defer conn.Close()
+
+remoteAddr := conn.RemoteAddr().String()
+t.Logf("Actual connected to: %s", remoteAddr)
+
+// 解析 IP
+host, _, _ := net.SplitHostPort(remoteAddr)
+if host != "10.244.1.5" { // Waypoint 或 Pod IP
+    t.Fatalf("Expected redirected to 10.244.1.5, but got %s", host)
+}
 
