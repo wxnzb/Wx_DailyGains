@@ -1,9 +1,86 @@
-## 实施方案
+---
+title: Add Unit Testing Support for eBPF Programs in Kmesh
+authors:
+- "@wxnzb" 
+reviewers:
+- "@lizhencheng"
+
+approvers:
+- "@lizhencheng"
+
+creation-date: 2025-01-15
+
+---
+
+
+### Summary
+
+<!--
+This section is incredibly important for producing high-quality, user-focused
+documentation such as release notes or a development roadmap.
+
+A good summary is probably at least a paragraph in length.
+-->
+
+### Motivation
+
+<!--
+This section is for explicitly listing the motivation, goals, and non-goals of
+this KEP.  Describe why the change is important and the benefits to users.
+-->
+
+When developing eBPF programs in Kmesh, verifying their functionality requires compiling and performing black-box testing. Following Cilium's approach, we introduced a dedicated testing framework for eBPF programs. The framework is now fully set up, and we need contributors to help complete the test cases for each eBPF program.
+
+#### Goals
+
+<!--
+List the specific goals of the KEP. What is it trying to achieve? How will we
+know that this has succeeded?
+-->
+
+- Successfully running unit test code for Kmesh's eBPF sendMsg program.
+
+- Successfully running unit test code for Kmesh's eBPF cgroup program.
+
+- Documentation written in English for the tests of both sendMsg and cgroup programs.
+#### Non-Goals
+
+<!--
+What is out of scope for this KEP? Listing non-goals helps to focus discussion
+and make progress.
+-->
+
+### Proposal
+
+<!--
+This is where we get down to the specifics of what the proposal actually is.
+This should have enough detail that reviewers can understand exactly what
+you're proposing, but should not include things like API designs or
+implementation. What is the desired outcome and how do we measure success?.
+The "Design Details" section below is for the real
+nitty-gritty.
+-->
+
+- Test Framework: sendmsg.c and cgroup_sock.c will use the unitTests_BUILD_CONTEXT framework,cgroup_skb.c use the unitTests_BPF_PROG_TEST_RUN framework
+
+- Mock Functions: For each _test.c file, include the necessary mocked BPF helper functions required during testing.
+
+- Testing Methods:
+  - For branches that write to BPF maps, use coll.Maps["..."] on the Go testing side to verify whether the map contents are correct.
+
+### Design Details
+
+<!--
+This section should contain enough information that the specifics of your
+change are understandable. This may include API specs (though not always
+required) or even code snippets. If there's any ambiguity about HOW your
+proposal will be implemented, this is the place to discuss them.
+-->
 ###  sendmsg.c
-### 进行挂载和触发
-#### 挂载
-- 在workload_sendmsg.c中包含这个sockhash的map
-```
+### mount and set up
+#### mount
+- include the sockhash map in workload_sendmsg.c
+```c
 struct {
     __uint(type, BPF_MAP_TYPE_SOCKHASH);
     __type(key, struct bpf_sock_tuple);
@@ -12,35 +89,34 @@ struct {
     __uint(map_flags, 0);
 } map_of_kmesh_socket SEC(".maps");
 ```
-- 在workload_test.go中
-- 加载ebpf程序到内核
-```
+- in workload_test.go
+- load the eBPF program into the kernel
+```go
    //load the eBPF program
- 	spec := loadAndPrepSpec(t, path.Join(*testPath, objFilePath))
-	var (
-			coll *ebpf.Collection
-			err  error
-						)
-	t.Log(path.Join(*testPath, objFilePath))
-	// Load the eBPF collection into the kernel
-	coll, err = ebpf.NewCollection(spec)
+  spec := loadAndPrepSpec(t, path.Join(*testPath, objFilePath))
+  var (
+      coll *ebpf.Collection
+      err  error
+            )
+  t.Log(path.Join(*testPath, objFilePath))
+  // Load the eBPF collection into the kernel
+  coll, err = ebpf.NewCollection(spec)
 ```
-- 获取sockhash的map并将ebpf程序挂载到这个map上面
-```
+- Lookup the sockhash map and attach the sk_msg eBPF program to the map
+```go
     sockMap := coll.Maps["km_socket"]
     t.Log(sockMap.Type())
     t.Log(ebpf.SockHash)
     prog := coll.Programs["sendmsg_prog"]
     err = link.RawAttachProgram(link.RawAttachProgramOptions{
-							Attach: ebpf.AttachSkMsgVerdict,
-							Target: sockMap.FD(),
-							//Target:  fd,
-							Program: prog,
-						})
+              Attach: ebpf.AttachSkMsgVerdict,
+              Target: sockMap.FD(),
+              Program: prog,
+            })
 ```
-#### 触发
-- 建立网络连接，获取fd,将fd插入map，之后用这个fd发送消息会触发
-```
+#### set up
+- Establish a network connection, obtain the file descriptor (fd), insert the fd into the map, and sending messages through this fd will trigger the eBPF program
+```go
     localIP := get_local_ipv4(t)
     clientPort := 12345
     serverPort := 54321
@@ -60,25 +136,25 @@ struct {
         Timeout: 2 * time.Second,
     }).Dial("tcp4", serverSocket)
     defer conn.Close()
-    // 2. 获取 fd
+    // get fd
     fd, err := getSysFd(conn)
     if err != nil {
         t.Fatal(err)
     }
-  // 3. 构造k-v后进行插入
+  // Construct the key-value pair and then insert it.
     type bpfSockTuple4 struct {
         Saddr [4]byte
         Daddr [4]byte
         Sport uint16
         Dport uint16
-        _     [24]byte // padding, 保证结构体大小和内核一致
+        _     [24]byte // padding
     }
     var tupleKey bpfSockTuple4
     copy(tupleKey.Saddr[:], net.ParseIP(localIP).To4())
     copy(tupleKey.Daddr[:], net.ParseIP(localIP).To4())
     tupleKey.Sport = uint16(htons(uint16(clientPort)))
     tupleKey.Dport = uint16(htons(uint16(serverPort)))
-    // 传入 fd
+    // insert fd
     fd32 := uint32(fd)
     err = sockMap.Update(&tupleKey, &fd32, ebpf.UpdateAny)
     if err != nil {
@@ -87,27 +163,29 @@ struct {
         t.Logf("Update successful for key: %+v, fd: %d", tupleKey, fd32)
     }
 ```
-### 测试
--对于sendmsg程序又关键步骤
-- get_origin_dst(msg, &dst_ip, &dst_port)内部调用了
--  storage = bpf_sk_storage_get(&map_of_sock_storage, sk, 0, 0);这里可能需要在workload_sendmsg_test.c端进行mock
--  alloc_dst_length(msg, tlv_size + TLV_END_SIZE)内部调用了
--  ret = bpf_msg_push_data(msg, 0, length, 0);这里目前需在测试是观察是否需要mock
--  因为我观察到在sockops.c里面auth_ip_tuple(skops);内部调用了
--  struct ringbuf_msg_type *msg = bpf_ringbuf_reserve(&map_of_auth_req, sizeof(*msg), 0);并且地用成功
--  SK_MSG_WRITE_BUF(msg, off, &type, TLV_TYPE_SIZE);进行write"TLV"
-- 目前是打算写一个测试：直接测试是否在消息头写入TLV即可
-- 检验方式
-```
+### test
+
+- For the sendmsg program, there are key steps:
+- get_origin_dst(msg, &dst_ip, &dst_port) internally calls
+- storage = bpf_sk_storage_get(&map_of_sock_storage, sk, 0, 0); — this may need to be mocked in workload_sendmsg_test.c.
+- alloc_dst_length(msg, tlv_size + TLV_END_SIZE) internally calls
+- ret = bpf_msg_push_data(msg, 0, length, 0); — in tests, we currently need to observe whether this should be mocked.
+- I observed that in sockops.c, auth_ip_tuple(skops); internally calls
+- struct ringbuf_msg_type *msg = bpf_ringbuf_reserve(&map_of_auth_req, sizeof(*msg), 0); and it works successfully.
+- SK_MSG_WRITE_BUF(msg, off, &type, TLV_TYPE_SIZE); performs the "TLV" write.
+- The current plan is to write a test that directly verifies whether TLV is written into the message header.
+- Validation method: Check whether TLV is correctly written into the message header.
+- Validation method
+```go
     buf := make([]byte, 64)
     n, _ := ln.Accept().Read(buf)
     t.Logf("Received data: %x", buf[:n])
 ```
 ### cgroup_sock.c
-### 进行挂载和触发
-#### 挂载
-- 在workload_test.go中
-```
+### mount and set up
+#### mount
+- in workload_test.go
+```go
    // mount cgroup2
     mount_cgroup2(t, cgroupPath)
     defer syscall.Unmount(cgroupPath, 0)
@@ -116,21 +194,22 @@ struct {
     defer coll.Close()
     defer lk.Close()
 ```
-#### 触发
-```
-conn, err := net.Dial("tcp4", "10.96.0.1:8080") // 原始目标
+#### set up
+```go
+conn, err := net.Dial("tcp4", "...") 
 if err != nil {
     t.Fatalf("Dial failed: %v", err)
 }
 defer conn.Close()
-````
-### 测试
-- 目前connect4和connect6分别想出来5个测试点
-- 1
-- handle_kmesh_manage_process(&kmesh_ctx)内部调用了bpf_map_update_elem(&map_of_manager, &key, &value, BPF_ANY);或者 err = bpf_map_delete_elem(&map_of_manager, &key);，进行验证，在目的地址是CONTROL_CMD_IP：ENABLE_KMESH_PORT的时候将他的netns_cookie加入map;在目的地址是CONTROL_CMD_IP：DISABLE_KMESH_PORT的时候将他的netns_cookie从map中删除
-- 验证方法：
-- 加入时验证
 ```
+### test
+- Currently, connect4 and connect6 each have 5 test points.
+- 1
+- handle_kmesh_manage_process(&kmesh_ctx) internally calls bpf_map_update_elem(&map_of_manager, &key, &value, BPF_ANY); or err = bpf_map_delete_elem(&map_of_manager, &key); for verification.
+- When the destination address is CONTROL_CMD_IP: ENABLE_KMESH_PORT, it adds its netns_cookie to the map; when the destination address is CONTROL_CMD_IP: DISABLE_KMESH_PORT, it deletes its netns_cookie from the map.
+- Validation method:
+- Verify the addition when inserting.
+```go
     kmManageMap := coll.Maps["km_manage"]
     if kmManageMap == nil {
         t.Fatal("Failed to get km_manage map from collection")
@@ -156,8 +235,8 @@ defer conn.Close()
         t.Fatalf("Expected 1 entry in km_manage map, but got %d", count)
     }
 ```
-- 删除时验证
-```
+- Validation when deleting
+```go
     iter = kmManageMap.Iterate()
     count = 0
     for iter.Next(&key, &value) {
@@ -171,14 +250,14 @@ defer conn.Close()
         t.Fatalf("Expected 0 entry in km_manage map, but got %d", count)
     }
 ```
-- 注意事项
-- 这里可能需要在workload_cgroup_sock_test.c里面mock,storage = bpf_sk_storage_get(&map_of_sock_storage, sk, 0, BPF_LOCAL_STORAGE_GET_F_CREATE);
+- Notes
+- Here it may be necessary to mock storage = bpf_sk_storage_get(&map_of_sock_storage, sk, 0, BPF_LOCAL_STORAGE_GET_F_CREATE); inside workload_cgroup_sock_test.c.
 - 2
-- sock_traffic_control(&kmesh_ctx)这个函数时关键，内部包含
-- frontend_v = map_lookup_frontend(&frontend_k);考虑怎样将frontend_v进行返回，这个一定要返回一个值
-- 通过构造k-v使map中有这个k-v就可以找到了,构造frontend map
-```
-    //填充frontend map
+- The function sock_traffic_control(&kmesh_ctx) is critical and internally includes
+- frontend_v = map_lookup_frontend(&frontend_k); Consider how to return frontend_v; this must return a value.
+- By constructing a key-value pair so that the map contains this k-v, it can be found; construct the frontend map.
+```go
+    //frontend map
     type ip_addr struct {
         Raw [16]byte
     }
@@ -197,8 +276,8 @@ defer conn.Close()
     if ip4 == nil {
         t.Fatalf("invalid IPv4 address")
     }
-    copy(f_key.Addr.Raw[0:4], ip4) // 高位放IPv4
-    // 构造 value
+    copy(f_key.Addr.Raw[0:4], ip4) 
+    // Build the value
     f_val := frontend_value{
         UpstreamID: 1,
     }
@@ -206,12 +285,12 @@ defer conn.Close()
         log.Fatalf("Update failed: %v", err)
     }
 ```
-- frontend_manager(kmesh_ctx, frontend_v);内部包含
+- frontend_manager(kmesh_ctx, frontend_v); internally includes
 - kmesh_map_lookup_elem(&map_of_service, key)
-- 2.1:可以找到：
-- 2.1.1：
-- 测试点：service_value中的waypoint==true
-```
+- 2.1: can find:
+- 2.1.1:
+- Test point: waypoint == true in service_value
+```go
 type service_value struct {
     PrioEndpointCount [7]uint32
     LbPolicy          uint32
@@ -221,24 +300,25 @@ type service_value struct {
     WaypointPort      uint32
 }
 wpIP := net.ParseIP("localIP").To4()
-// 构造 value
+// Build the value
 s_val := service_value{
-    WpAddr:       ip_addr{Raw: [16]byte{}}, // waypoint IP全0，表示无
-    WaypointPort: 55555,                    //填充
+    WpAddr:       ip_addr{Raw: [16]byte{}}, 
+    WaypointPort: 55555,                    //Build 
 }
 ```
-- 那么此时你需要监听转发后的地址,这样转发后连接不会被拒绝
-```
+- At this point, you need to monitor the forwarded address so that the forwarded connection will not be rejected
+
+### Alternatives
+```go
 test:=localIp+":"+strconv.Itoa(htons(55555))
 -  _, err = net.Listen("tcp4", "10.30.0.124:985")
-```						
-- 2.2.2:
-- 测试点：service_value中的waypoint==false,需要进行负载均衡
-- 2.2：不能找到，进行kmesh_map_lookup_elem(&map_of_backend, key)，这个一定要又返回
-- 2.2.1：
-- 测试点：backend_value的waypoint==true
-- 构造：
 ```
+- 2.2.2:
+- 2.2: If not found, perform kmesh_map_lookup_elem(&map_of_backend, key); this must return a value
+- 2.2.1:
+- Test point: waypoint == true in backend_value
+- Construction:
+```go
 type backend_value struct {
     Addr         ip_addr
     ServiceCount uint32
@@ -247,7 +327,7 @@ type backend_value struct {
     WaypointPort uint32
 }
     wpIP := net.ParseIP(localIP).To4()
-// 构造 value
+// Build the value
 b_val := backend_value{
     Addr:         ip_addr{Raw: [16]byte{}},  
     ServiceCount: 0,                           
@@ -255,21 +335,21 @@ b_val := backend_value{
     WpAddr:       ip_addr{Raw: [16]byte{}},    
     WaypointPort: uint32(testPort),            
 }
-// 填充 WpAddr
+// map WpAddr
 copy(b_val.WpAddr.Raw[0:4], wpIP)
 if err := BackendMap.Update(&b_key, &b_val, ebpf.UpdateAny); err != nil {
     log.Fatalf("Update failed: %v", err)
 }
 ```
-- 这个流量也进行了转发，因此也必须提前监听转发后的地址
-```
+- This traffic is also forwarded, so the forwarded address must be listened to in advance.
+```go
 testIpPort := localIP + ":" + strconv.Itoa(htons(testPort))
 _, err = net.Listen("tcp4", testIpPort)
 ```
-- 2.2.2:
-- 测试点：backend_value的waypoint==false
-- 构造：
-```
+- 2.2.2
+- Test point: waypoint == false in backend_value
+- Construction:
+```go
 type backend_value struct {
     Addr         ip_addr
     ServiceCount uint32
@@ -288,17 +368,14 @@ if err := BackendMap.Update(&b_key, &b_val, ebpf.UpdateAny); err != nil {
     log.Fatalf("Update failed: %v", err)
 }
 ```
-- 注意：这里构造的value里面的 UpstreamID必须后面构造的km_backend里面填充的key长的一样或者和km_service里面填充的key长的一样，例如：
-```
+- Note: The UpstreamID in the constructed value must match the key length used later when populating km_backend or the key length used in km_service. For example:
+```go
 type backend_key struct {
     BackendUID uint32
 }
 b_key := backend_key{
     BackendUID: 1,
 }
-```
-
-```
 type service_key struct {
     ServiceID uint32
 }
@@ -306,8 +383,9 @@ s_key := service_key{
     ServiceID: 1,
 }
 ```
-- 验证方法：
-```
+
+- Validation method:
+```go
 expectedIP := localIP
     expectedPort := strconv.Itoa(htons(testPort))
 
@@ -315,17 +393,17 @@ expectedIP := localIP
         t.Fatalf("Expected redirected to %s:%s, but got %s:%s", expectedIP, expectedPort, host, port)
     }
 ```
-### cgroup_skb
-### 他是bpf_prog_run支持的类型，可以使用第一个框架进行测试
-- 因为他和tc触发时的参数一样__sk_buff，因此可以仿照他来写
-```
+### cgroup_skb.c
+- It is a type supported by bpf_prog_run and can be tested using the first framework.
+- Since it uses the same __sk_buff parameters as tc triggers, it can be written by following that example.
+```c
 #include "ut_common.h"
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/in.h>
 #include <netinet/tcp.h>
 
-#include "workload/cgroup_skb.c" // 引入被测程序
+#include "workload/cgroup_skb.c" 
 struct tcp_probe_info mock_info;
 bool mock_ringbuf_called = false;
 static __always_inline void mock_clear()
@@ -336,7 +414,7 @@ static __always_inline void mock_clear()
 void *bpf_ringbuf_reserve(void *ringbuf, __u64 size, __u64 flags)
 {
     mock_ringbuf_called = true;
-    return &mock_info; // 直接返回 mock_info 的地址
+    return &mock_info; // return mock_info address
 }
 // Tail call map for jump
 struct {
@@ -347,8 +425,8 @@ struct {
 } entry_call_map SEC(".maps") = {
     .values =
         {
-            [0] = &cgroup_skb_ingress_prog, // 0 号 slot 跳到 ingress
-            [1] = &cgroup_skb_egress_prog,  // 1 号 slot 跳到 egress
+            [0] = &cgroup_skb_ingress_prog, // 0 号 slot into ingress
+            [1] = &cgroup_skb_egress_prog,  // 1 号 slot into egress
         },
 };
 
@@ -387,7 +465,7 @@ const struct tcphdr l4 = {
 
 const char payload[20] = "Cgroup SKB Test!!";
 
-// /// ---------------------- PKTGEN ----------------------
+// ---------------------- PKTGEN ----------------------
 /// 构造测试用数据包
 PKTGEN("cgroup_skb", "cgroup_skb_ingress")
 int test_ingress_pktgen(struct __sk_buff *ctx)
@@ -423,11 +501,13 @@ int test_ingress_check(struct __sk_buff *ctx)
     test_finish();
 }
 ```
+<!--
+What other approaches did you consider, and why did you rule them out? These do
+not need to be as detailed as the proposal, but should include enough
+information to express the idea and why it was not acceptable.
+-->
 
-
-
-
-
-
-
-
+<!--
+Note: This is a simplified version of kubernetes enhancement proposal template.
+https://github.com/kubernetes/enhancements/tree/3317d4cb548c396a430d1c1ac6625226018adf6a/keps/NNNN-kep-template
+-->
