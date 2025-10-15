@@ -56,10 +56,29 @@ ai:
  常用 API 有：
 
 - `Background()`：顶层 context；
+
 - `WithCancel()`：返回可取消的 context 和 cancel 函数；
+
 - `WithDeadline()` / `WithTimeout()`：创建带截止时间或超时的 context；
+
 - `WithValue()`：携带请求级别的键值对（如 traceID）。
    使用时要沿调用链传递 context，不要存全局，操作完记得调用 cancel() 避免 goroutine 泄露。”
+   
+   ai:
+   
+   Go 的 `context` 主要用于 **在 goroutine 之间传递取消信号、超时控制、截止时间** 和 **请求范围内的数据**。
+    它的设计初衷是为了让一条请求链路上的所有 goroutine 都能感知“请求结束”的信号，从而及时退出，避免资源泄露。
+   
+   ------
+   
+   ### 🌱 常用函数
+   
+   - **`context.Background()`**：最顶层、空的根 context，一般用于 main 函数、初始化或测试。
+   - **`context.TODO()`**：和 Background 类似，但用于暂时还不确定要用什么 context 的场景。
+   - **`context.WithCancel(parent)`**：基于父 context 创建一个可取消的子 context，返回 `(ctx, cancel)`，调用 `cancel()` 会通知所有下游 goroutine 退出。
+   - **`context.WithDeadline(parent, t)`**：基于父 context 创建一个带“截止时间”的 context，到达指定时间自动取消。
+   - **`context.WithTimeout(parent, d)`**：基于父 context 创建一个带“超时时间”的 context，本质上是对 `WithDeadline` 的封装。
+   - **`context.WithValue(parent, key, value)`**：携带请求范围内的键值对，用于传递少量、非关键性元数据（例如 traceID、userID），但**不推荐滥用**来传递业务数据。
 
 **-------你了解go的GMP吗**
 
@@ -240,7 +259,7 @@ go的查bug?
 
 Go 协程（goroutine）之间是 **怎样共享与通信的**？
 
-
+携程上下文切换做了什么？
 
 
 
