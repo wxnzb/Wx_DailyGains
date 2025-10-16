@@ -46,9 +46,7 @@ kmesh目前还不能完全代替sidecar,他目前确实是在追捕覆盖传统�
 
 在进行测试的时候，因为他牵扯到ebpf索引不太好测试，我是通过将bpf_trace_printk()封装成一个多参数调用的宏，在ebpf程序中像刚开始找bug一样将他的内容打印出来进行检查是否正确
 
-
-
-
+cgroup_sock：首先会进行判断他是不是kmesh管理的，然后会将本地ip和端口注册到frontend_k里面，通过lookup函数找frontend_k对应的frontend_v,这里面有目标ip他属于那个上游；找到之后他会注册service_k,然后也是通过lookup函数找到相应的service_v,service_v主要包含负载均衡策略，端口映射等，他会优先走service，先判断service的waypoint是不是为1,要是为1,说明该服务要求所有流量经由 waypoint，直接重定向到 waypoint。要是不是，就需要根据service的policy选择负载均衡策略，比如随机负载均衡，或者本地优先，必须匹配；或者本地优先，失败了才切远程，最后就直接转发到了目标地址。要是没有service_v,那么就将bankend_k设置成frontend_v,找到相应的backend_v,进行改写目标地址
 
 
 
