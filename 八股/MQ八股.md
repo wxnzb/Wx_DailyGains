@@ -28,6 +28,14 @@ raft的一致性问题可以分成3个子问题，分别是leader选举，日志
 
 生产者要发送消息时，他会先根据topic+partition来在本地先找有没有存储相对应的leaderbroker,要是没有，那么他会通过GetLeader来去zookeeper中找（这里zookeeper是怎么通过topic+partition来找到相应的leader broker的?___zookeeper他是通过topic+partition+nowblock拉获取到最新正在写的块的结构体，这里面就有对应的leader block)，找到后与leader broker建立连接，然后向这个leader broker发送消息,发送消息的时候我们会戴上ack,要是ack=-1,表示需要大多数follower同步复制并确认确认，根据ack=1是只要leader写入成功即可，ack=0则是开启一个携程进行异步副本写入操作。我们则一般选择的是ack=-1的形式。直接返回leader broker会先查询topic和partition是否存在，不存在就创建并启动partition接收消息，然后leader broker获得他下面的Followe broker,将消息发送给他们，他们将消息存储在本地并返回给leadre broker,leader broker看到有超过一半存储到partition 副本成功改就也存储在自己的partition下面，然后将结果返回给客户端生产者
 
+**那对于消费者消费消息呢？整个流程**，加油，你是最棒的！！！
+
+消费者消费消息由两种方式，一种是订阅一个topic/partition,那么要是topic下面的partition有了消息会直接推送给消费者；还有一种是消费者自己想要取拉取消息的
+
+对于第一种：他会向zkserver查询这个partition对应的broker,然后他会和broker建立连接，然后broker会先检查这个消费者是否或者，要是或者就可以继续推送消息
+
+对于第二种【消费者控制消费速度】：他会在topic+partition+他所需要的偏移量，然后在带上自己所要消费消息的数量，
+
 **要是面试官问，那你raft同步和异步(fetch的实现)**
 
 就是在producer的时候，就会和zookeeper进行交互设置他的模式为fetch和副本数量，那么在zookeeper他会通过topic+partition来通过一致性哈希来获取到broker,然后将第一个broker当作leader broker,然后遍历 follower，向每个follower发送addfetch的命令，这里面传入的参数就有 laeder broker和所有的follower broker，每个follower broker再收到命令后，会判断是否是leader broker,要是是他会遍历其他的follower broker，准备接收其他follower的pull请求，要是是Follower broker,他会和leader broker建立连接去主动拉取消息
@@ -42,9 +50,32 @@ raft的一致性问题可以分成3个子问题，分别是leader选举，日志
 
 通过一个broker对应多个虚拟节点，并将这些虚拟节点均匀的分布在哈希环上面，可以使数据更加均匀的分布在不同的broker(那么又有一问了，那leader节点呢，没用吗？和他们一样吗？）上面，当某个broker宕机时，我们只需要将他对应的虚拟节点删除，并把虚拟节点上的数据迁移到其他节点就行。主要提高负载均衡能力和容错性
 
+**有哈希环吗，就是一个partiiton会对应的虚拟节点，然后虚拟节点会找到真正的leader,那么既然一个partition对应一个raft集群，那他肯定虚拟节点最终找到的就还是他的leader节点吗，因此我不明白这个我添加的虚拟节点有什么用**【被问到了，一点不会】
+
+他是生产者现在本地map里找有没有这个topic-partition对应的leaderB已经存起来了，要是有，就直接使用；要是没有，他会通过哈希环找到对应的broker,我默认是三个partition副本也就是会有3个broker,然后会对这三个broker上创建raft实例，他只是在partition首次创建时使用，用来决定这个partition由哪些broker来存储；然后在生产者生产了消息后，会直接向leader broker发送消息，然后leader broker会进行日志同步，每个follower broker在收到leader的消息后，会直接写入本地磁盘
+
+那么虚拟节点的作用，主要时首先要是没有虚拟节点，每次创建一个prtition那么他会找broker进行分配，会产生节点分配不均匀的情况，就是有的节点他又3个partition,但是有的partition只有1个partition
+
+然后还有一个问题就是要是新加一个节点，他要是用哈希环，可能上面的partition都要重新进行分配位，但是要是加了虚拟节点可能需要重新分配的partition数量就会少一点
+
+```
+原来：3个Broker，每个10个虚拟节点，环上共30个虚拟节点
+新增Broker-D：添加10个虚拟节点，环上共40个虚拟节点
+
+影响：
+  只有新虚拟节点"顺时针下一个虚拟节点"对应的Partition需要迁移
+  需要迁移的Partition数量：约25%（10/40）
+
+示例：
+  Broker-D-1插入到环上
+  → 只有原本属于"Broker-D-1顺时针下一个虚拟节点"的Partition需要迁移过来
+```
+
+
+
 那还有哪些负载均衡算法？
 
-**那对于消费者消费消息呢？整个流程**
+
 
 **就是消费者消费了一条消息在磁盘中找不是还是很慢，有什么优化的方式吗**
 
@@ -91,6 +122,12 @@ LSM-Tree架构 = MemTable + 多层SSTable + Compaction机制
 **为什么选择kitex而不是gRPC？**
 
 在我的mq项目中选择kitex而不选择grpc,首先是因为我的mq是用go实现的， Kitex 是专门为 Go 生态设计的高性能 RPC 框架；而且kitex他主要基于thrift写一和自即研究的netpoll网络库，在高并发，高体那兔场景夏延迟耕地，性能更优，非常契合消息队列这种对性能要求高的系统。对于grpc他主要是在跨语言和http/2通信的优势，对于我们mq的简单的请求响应，不需要实现这么复杂的，所以我觉得选用kitex更合适
+
+ai:
+
+“在我的 MQ 项目里，我选择 Kitex 而不是 gRPC，主要有两个原因：
+ 第一，Kitex 是专门为 Go 生态设计的高性能 RPC 框架，底层基于 Thrift 和自研的 Netpoll 网络库，非常适合高并发、低延迟场景，这正契合消息队列对性能的要求；
+ 第二，gRPC 的优势在跨语言和 HTTP/2 通信，但我们的 MQ 主要是 Go 内部请求响应场景，并不需要这些复杂功能，所以 Kitex 更轻量、性能更优。”
 
 **在我的项目中，那哪里都用到了rpc呢？**
 
@@ -220,6 +257,8 @@ redis的zset,通过score存放时间戳，定时查询到期时间
 
 kafka的多topic方案，提前船舰多个延迟topic,每个代表一种延迟时间，生产者会根据业务需要，把消息发送到队赢得延迟topic,然后会创建一个后台线程，他会定期查看所有的延迟队列，检查消息是否到期，钥要是到期，就将消息转发到真实
 
+ttl队列：为每个消息设置一个过期时间，消息到达ttl时间后，要是还没有被消费，就被看作过期时间，被丢弃或者转到死信队列里面。像rabbit塔内部每条消息都维护一个ttl，每次取消息的时候都判断他是否过期，要是过期会进行标记。
+
 **为什么要有term,他的作用是什么，可以无限增长吗？**
 
 他像一个逻辑时钟，主要作用是保证raft算法的正确性，他是怎样保证的呢？term是一个单调递增的证书，每次进行raft选举的时候，都会产生一个新的term,这也就说明，在人以给定的term内，最多只会有一个leader,也就是通过term可以唯一标识出当前的leader,然后他还可以解决日志冲突以及日志一致性。在raft进行日志复制的过程，会先比较term的大小，要是fllower的小于leader，那就就可以直接进行日志的复制；要是大于，就直接拒绝，leader也知道自己已经落后，就会将降级为follower
@@ -315,3 +354,21 @@ Raft 还通过 **term（任期号）机制** 保证安全性。
 **讲一下kafka的事务？**
 
 etcd对于raft的优化有哪些
+
+raft选举的时候的持久化？
+
+如何设计业务监控指标？
+
+报警风暴？
+
+为什么选用raft而不是kafka的isr?
+
+**怎样优化**
+
+可以向就是在follower页可以进行读操作：租约读和安全读
+
+就是leader给自己发一个租约，在这个租约内客户端要是是读取消息直接可以在follower上面进行读取，但是他又租约时间，要是leader崩溃后租约没有失效，此时还是在follower进行读取，肯哪个会产生·读到就数据的情况
+
+安全读：
+
+在客户端读取消息的时候会向leader发送一次心跳，心跳含有自己的最新index,要是leader节点回了信息，就可以继续读了，比较适合于强一致性业务

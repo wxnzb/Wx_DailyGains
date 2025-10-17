@@ -4,31 +4,43 @@ Innodb引擎使用的什么数据结构作为索引，为什么选这个数据�
 
 **～～～～innodb架构：**
 
-innodb是mysql默认存储引擎，主要包括内存池，后台线程和磁盘文件组成
+innodb是mysql默认的存储引擎，他采用行级锁+mvcc来支持事务，通过bufer pool.redo log,undo log,后台线程等来实现数据管理
 
-内存池中主要分为三部分：
+我觉得可一把他具体分为：后台线程系统；磁盘存储；buffer pool;日志系统来讲
 
-buffer pool缓冲区：写操作先修改buffer pool缓冲区，然后异步通过后台线程刷回磁盘
+内存结构：
 
-change pool缓冲区：主要是针对二级索引的增删改操作，等需要访问才会将他刷入磁盘
+buffer pool:innodb数据页缓存，使用lru+free list+flush list管理；
 
-log buffer:用来暂时存储redo log的数据，事务提交时才写入磁盘
+log buffer:缓存redo log,周期性进行刷盘
 
-后台线程:他主要是同步内存和磁盘的数据：
+磁盘结构：
 
-master thread:
+表空间：主要是.ibd文件，包含数据页，索引页
 
-io thread:
+数据页大小：16kb
 
-purge thread:清理已经不在需要的undo log
+redo log:记录物理更改，主要用于崩溃恢复
 
+undo log:主要是存储事务的回滚信息
 
+日志系统：
 
-磁盘结构主要分为三部分：
+主要就是redo undo log
 
-系统表空间，用户表空间，redo log文件【重做日志文件】和归档文件
+redo log【重做日志】：记录对数据页的物理修改，支持崩溃恢复
 
-重做日志文件的作用：...
+undo log【回归日志】：记录修改前的数据，支持事务回滚
+
+后台线程系统：
+
+master thread:负责脏页刷新
+
+io thread:读写磁盘页
+
+purge thread:清理已经提交事务的undo log
+
+page cleaner thread:异步刷脏页
 
 ## ✅ InnoDB 写操作的完整流程（精简口述版）
 
@@ -417,9 +429,18 @@ B+树和lms-tree是区别？
 
 **索引下推是 MySQL InnoDB 的一种谓词下推优化。区别在于，索引下推针对索引扫描过程，减少回表；而谓词下推的概念更广，强调把过滤条件尽量下推到离数据更近的地方，比如存储引擎或分区层面**
 
+INNER JOIN（内连接）：只返回两个表中匹配条件的行，即两表交集部分。
+LEFT JOIN（左连接）：返回左表所有行，右表中匹配的行对应显示，不匹配则右表字段为 NULL。
 
+innodb和myisam的区别：
 
+innodb支持事务，他不支持
 
+innodb支持外键；他不支持
+
+innodb支持行锁表锁；他只支持表锁
+
+inndb适合高并发写操作；他支持读多写少的情况
 
 
 
