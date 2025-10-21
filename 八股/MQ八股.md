@@ -91,7 +91,7 @@ raft的一致性问题可以分成3个子问题，分别是leader选举，日志
 
 **如何保证消息只被消费一次？**
 
-目前我只实现了消息至少被消费一次，就是客户端消费一个消息，他会带上自己要消费的offset,那么在leader broker把消息给消费者之后，这样字要是在返回给消费者之后要是在保存offset的时候出现问题了没保存成功，那么会出现消费者可以多次消费此条消息【要想消息只被消费者消费一次，在消费者者便还需要做幂等性处理】，然后会将offset保存下来并且存到zookeeper里面，这样子要是这个leader broker节点宕机了，那么他会在知道raft选举出来的新leader之后他会去zookeeper拉取每个自己负责的partition+consumer+offset
+目前我只实现了客户端消费一个消息，他会带上自己要消费的offset,那么在leader broker把消息给消费者之后，这样字要是在返回给消费者之后要是在保存offset的时候出现问题了没保存成功，那么会出现消费者可以多次消费此条消息【要想消息只被消费者消费一次，在消费者者便还需要做幂等性处理】，然后会将offset保存下来并且存到zookeeper里面，这样子要是这个leader broker节点宕机了，那么他会在知道raft选举出来的新leader之后他会去zookeeper拉取每个自己负责的partition+consumer+offset
 
 ai:为了保证消息只被消费一次，针对不同的消息模式有不同的策略。在点对点（PTP）模式下，通过独占消费确保每个 partition 只能被一个 consumer 消费，顺序消费避免重复，原子更新 offset 保证消费进度正确，故障恢复后 consumer 从上次位置继续。在发布订阅（PSB）模式下，每个 consumer 维护独立的 offset，同一组内只有一个 consumer，不同组可以并行消费，消费进度持久化到 Zookeeper。通用的保证机制包括消息 ID 唯一性去重、状态跟踪（NOTDO -> HAVEDO -> HADDO）、确认机制确保消费成功才更新 offset、故障处理时检测故障并重新分配，以及持久化存储消费进度到 Zookeeper。
 
@@ -448,3 +448,5 @@ kafka的高水位是保证副本数据一致性的核心，为什么说他是一
 对于hw的更新操作：
 
 就是每次leader在接收到消息之后，leader的leo进行加一，然后他会将这条消息同步给其他的follower,在其他follower进行同步值后会将自己的leo进行+1操作，然后返回给leader beoker,leader会以follower broker中的最小leo当做hw,然后将这个hw返回给下面的follower broker,让下面的 follower broker知道
+
+protobuf和json,protobuf的工具
