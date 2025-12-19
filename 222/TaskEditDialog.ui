@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+	<class>TaskEditDialog</class>
+	<widget class="QDialog" name="TaskEditDialog">
+		<property name="geometry">
+			<rect>
+				<x>0</x>
+				<y>0</y>
+				<width>500</width>
+				<height>400</height>
+			</rect>
+		</property>
+		<layout class="QVBoxLayout" name="verticalLayout">
+			<item>
+				<widget class="QLabel" name="titleLabel">
+					<property name="text">
+						<string>任务标题 *</string>
+					</property>
+				</widget>
+			</item>
+			<item>
+				<widget class="QLineEdit" name="titleLineEdit">
+					<property name="placeholderText">
+						<string>请输入任务标题...</string>
+					</property>
+				</widget>
+			</item>
+			<item>
+				<widget class="QLabel" name="descriptionLabel">
+					<property name="text">
+						<string>任务描述</string>
+					</property>
+				</widget>
+			</item>
+			<item>
+				<widget class="QTextEdit" name="descriptionTextEdit">
+					<property name="placeholderText">
+						<string>请输入任务描述（可选）...</string>
+					</property>
+				</widget>
+			</item>
+			<item>
+				<layout class="QHBoxLayout" name="horizontalLayout">
+					<item>
+						<widget class="QLabel" name="priorityLabel">
+							<property name="text">
+								<string>优先级</string>
+							</property>
+						</widget>
+					</item>
+					<item>
+						<widget class="QComboBox" name="priorityComboBox"/>
+					</item>
+				</layout>
+				<item>
+					<layout class="QHBoxLayout" name="horizontalLayout_2">
+						<item>
+							<widget class="QLabel" name="deadlineLabel">
+								<property name="text">
+									<string>截止日期</string>
+								</property>
+							</widget>
+						</item>
+						<item>
+							<widget class="QDateTimeEdit" name="deadlineDateTimeEdit"/>
+						</item>
+					</layout>
+					<item>
+						<layout class="QHBoxLayout" name="horizontalLayout_3">
+							<item>
+								<widget class="QLabel" name="categoryLabel">
+									<property name="text">
+										<string>分类</string>
+									</property>
+								</widget>
+							</item>
+							<item>
+								<widget class="QComboBox" name="categoryComboBox"/>
+							</item>
+						</layout>
+						<item>
+							<layout class="QHBoxLayout" name="buttonLayout">
+								<item>
+									<spacer name="horizontalSpacer">
+										<property name="orientation">
+											<enum>Qt::Horizontal</enum>
+										</property>
+										<property name="sizeHint" stdset="0">
+											<size>
+												<width>40</width>
+												<height>20</height>
+											</size>
+										</property>
+									</spacer>
+								</item>
+								<item>
+									<widget class="QPushButton" name="saveButton">
+										<property name="text">
+											<string>💾 保存</string>
+										</property>
+									</widget>
+								</item>
+								<item>
+									<widget class="QPushButton" name="cancelButton">
+										<property name="text">
+											<string>❌ 取消</string>
+										</property>
+									</widget>
+								</item>
+							</layout>
+						</layout>
+	</widget>
+	<resources/>
+	<connections/>
+</ui>

@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>TaskFlow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="mainVerticalLayout">
+    <property name="spacing">
+     <number>0</number>
+    </property>
+    <item>
+     <widget class="QWidget" name="toolbarWidget" native="true">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>50</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>50</height>
+       </size>
+      </property>
+      <layout class="QHBoxLayout" name="toolbarLayout">
+       <item>
+        <widget class="QPushButton" name="newTaskBtn">
+         <property name="text">
+          <string>🆕 新建</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="editTaskBtn">
+         <property name="text">
+          <string>编辑</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="deleteTaskBtn">
+         <property name="text">
+          <string>🗑️ 删除</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="completeTaskBtn">
+         <property name="text">
+          <string>✅ 完成</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="searchBox">
+         <property name="placeholderText">
+          <string>搜索...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="contentWidget" native="true">
+      <layout class="QHBoxLayout" name="contentLayout">
+       <item>
+        <widget class="QWidget" name="leftSidebarWidget" native="true">
+         <property name="minimumSize">
+          <size>
+           <width>200</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>250</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <layout class="QVBoxLayout" name="sidebarLayout">
+          <item>
+           <widget class="QLabel" name="quickViewLabel">
+            <property name="font">
+             <font>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>快捷视图</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="quickViewList">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <item>
+             <property name="text">
+              <string>📋 全部任务</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>⭐ 重要</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>📅 今日待办</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="categoryLabel">
+            <property name="font">
+             <font>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>我的分类</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="categoryList">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <item>
+             <property name="text">
+              <string>📁 工作</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>📁 学习</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>📁 生活</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="addCategoryBtn">
+            <property name="text">
+             <string>+ 新建分类</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="rightContentWidget" native="true">
+         <layout class="QVBoxLayout" name="rightContentLayout">
+          <item>
+           <widget class="QTableWidget" name="taskTable">
+            <property name="columnCount">
+             <number>4</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>任务</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>优先级</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>截止日期</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>分类</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="statusWidget" native="true">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>30</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>30</height>
+       </size>
+      </property>
+      <layout class="QHBoxLayout" name="statusLayout">
+       <item>
+        <widget class="QLabel" name="statusLabel">
+         <property name="text">
+          <string>📊 共 0 个任务 | ✅ 已完成 0 个 | ⏰ 今日待办 0 个</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

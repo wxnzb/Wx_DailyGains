@@ -1,8 +1,64 @@
+# ========== Qt 编译文件 ==========
+build/
+build-*/
+*build-*
+*-build-*
+debug/
+release/
+
+# ========== Qt Creator 用户文件 ==========
+*.pro.user
+*.pro.user.*
+*.autosave
+
+# ========== 编译产物 ==========
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# ========== Qt 生成的文件 ==========
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qm
+
+# ========== Visual Studio 文件 (重要！) ==========
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.db-shm
+*.VC.db-wal
+*.VC.opendb
+*.ipch
+*.pdb
+*.ilk
+*.exp
+*.vsidx
+*.sln.cache
+*.sln.ide/
+
+# ========== IDE 文件 ==========
+.vscode/
+.idea/
+
+# ========== 系统文件 ==========
 .DS_Store
 Thumbs.db
-db.json
+*~
+*.swp
+Desktop.ini
+
+# ========== 临时文件 ==========
+*.tmp
 *.log
-node_modules/
-public/
-.deploy*/
-_multiconfig.yml
+*.bak
+*.cache
